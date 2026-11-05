@@ -15,7 +15,7 @@
 #
 """Graphical User Interface (GUI) application for sample collection using Draw Folium plugin and drone images
 
-   The image projection is based on EXIF metadata tags information and auxiliaries information such as flight height, course angle and dimension of sensor"""
+   The image projection is based on EXIF/XMP metadata tags information and auxiliaries information such as flight height and dimension of sensor"""
 
 
 # --------------------------
@@ -24,7 +24,7 @@
 import PySimpleGUI as sg
 import tkinter as tk
 import os
-import glob
+#import glob
 from pathlib import Path
 import sys
 import PIL.Image
@@ -118,16 +118,28 @@ def to_shp(file_in):
     try:
         gpd_df = gpd.read_file(file_in)
         if gpd_df.empty:
-            print("The file saved is empty, it will be deleted!")
-            os.remove(file_in)
+           sg.popup_quick_message(
+                "The file saved is empty, it will be deleted!", 
+                title="Alert", 
+                background_color='#d35400', 
+                text_color='#ffffff',
+                font=("Helvetica", 11, "bold"),
+                auto_close_duration=3
+            )
+           os.remove(file_in)
         else:
             for geomtype in gpd_df.geom_type.unique():
                  f_out = os.path.splitext(file_in)[0]+'_'+geomtype+'.shp'
                  gpd_df[gpd_df.geom_type == geomtype].to_file(f_out, driver='ESRI Shapefile', layer=geomtype)
             success = True
     except Exception as err:
-        print(err)
-        print('Stop background task for file:',file_in)
+        sg.popup_quick_message(err+'\nStop background task for file:\n'+file_in, 
+            title="Error", 
+            background_color='#c0392b',
+            text_color='#ffffff',
+            font=("Helvetica", 11, "bold"),
+            auto_close_duration=4
+        )
         sys.exit() #stop thread
 
     return success
@@ -140,7 +152,13 @@ def background_task(target_file):
         if os.path.exists(target_file):
                 success = to_shp(target_file)
                 if success:
-                    print('Stop background task for file:',target_file)
+                    sg.popup_quick_message(
+                                        "Stop background task for file:\n"+target_file, 
+                                        title="Success", 
+                                        background_color='#16a085', 
+                                        text_color='white',
+                                        font=("Helvetica", 11, "bold")
+                                    )
                     break
         # block for a while
         sleep(5)
@@ -206,11 +224,17 @@ def load_map_tool(file_in):
         with open(fname_json,'r') as f_json:
                 flight_info = json.load(f_json)     
     else:
-        flight_info_form = [[sg.Frame('Flight auxiliaries information',
-                                    [[sg.Text('Flight height (meters):', size=(23, 1)), sg.InputText(key='-f_height-')],
-                                              [sg.Text('Course angle (degrees):', size=(23, 1)), sg.InputText(key='-f_course_angle-')],
-                                              [sg.Text('Sensor width (millimeters):', size=(23, 1)), sg.InputText(key='-s_size_w-')],
-                                              [sg.Button('OK'), sg.Button('Cancel')]], pad=(0,0))]]
+        flight_info_form = [
+            [sg.Frame('Flight auxiliaries information', [
+                [sg.Text('Flight height (meters):', size=(23, 1)), sg.InputText(key='-f_height-')],
+                [sg.Text('Sensor width (millimeters):', size=(23, 1)), sg.InputText(key='-s_size_w-')],
+                
+                [sg.Text('', size=(23, 1)), sg.Text('E.g.: Phantom 3 Adv: 6.248 mm', font=('Helvetica', 8), text_color='gray')],
+                [sg.Text('', size=(23, 1)), sg.Text('Mavic 3m: 17.4mm (RGB) / 5.2mm (Multispectral)', font=('Helvetica', 8), text_color='gray')],
+                
+                [sg.Button('OK'), sg.Button('Cancel'), sg.Text('', pad=(0, 15))]
+            ], pad=(0,0))]
+        ]
         
         window_form = sg.Window('Flight information form', flight_info_form, finalize=True, keep_on_top=True)
         while True:
@@ -218,9 +242,8 @@ def load_map_tool(file_in):
             if event_form == "Exit" or event_form == sg.WIN_CLOSED or event_form == 'Cancel':
                 break
             elif event_form == 'OK':
-                if is_decimal(values_form['-f_height-']) and is_decimal(values_form['-f_course_angle-']) and is_decimal(values_form['-s_size_w-']):
+                if is_decimal(values_form['-f_height-']) and is_decimal(values_form['-s_size_w-']):
                     flight_info = {'flight_height_m':float(values_form['-f_height-']),
-                                   'course_angle_degrees':float(values_form['-f_course_angle-']),
                                    'sensor_width_mm':float(values_form['-s_size_w-'])}
                     
                     ch = sg.popup_yes_no("Do you want to save this auxiliary information for all images in this folder?", keep_on_top=True, title="Ask confirmation")
@@ -244,7 +267,14 @@ def load_map_tool(file_in):
        
         # Monitoring until the file with samples is saved:
         target_file = os.path.join(get_download_path(),samples_file_output)
-        print('Starting background task...')
+        sg.popup_quick_message(
+            "Starting background task...", 
+            title="Alert", 
+            background_color='#d35400',
+            text_color='#ffffff',
+            font=("Helvetica", 11, "bold"),
+            auto_close_duration=3
+        )
         daemon = Thread(target=background_task, args=(target_file,), daemon=True, name='Monitor')
         threads_monitor.append(daemon)
         daemon.start()
@@ -398,7 +428,6 @@ while True:
                 window['-LOAD IMAGE-'].update(visible=True)
                 
         except Exception as E:
-            print(f'** Error {E} **')
             sg.popup_error(f"Error loading the file:\n{E}", title="Critical Error", keep_on_top=True)
             pass        # something weird happened making the full filename
 

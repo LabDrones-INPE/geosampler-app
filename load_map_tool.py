@@ -23,7 +23,7 @@
 from PIL import Image, ExifTags
 import geopandas as gpd
 #from osgeo import osr, gdal
-from matplotlib import image
+#from matplotlib import image
 from affine import Affine  # For easy manipulation of affine matrix
 from geopy import distance, Point
 from shapely.geometry import Point as shply_Point
@@ -82,7 +82,7 @@ def decimal_coords(coords, ref):
 # Sensor size at Y (TSY): 4.686 mm
 
 # Features - https://sdk-forum.dji.net/hc/en-us/articles/12325496609689-What-is-the-custom-camera-parameters-for-Mavic-3-Enterprise-series-and-Mavic-3M
-# The device have 4 cameras (RGB) and Multispectral(G, Red, Red Edge and Near Infrared)
+# The device have 5 cameras (RGB) and Multispectral(G, Red, Red Edge and Near Infrared)
 # Image size	5280x3956 (RGB)	2592x1944 (MS)
 # Sensor size at X (TSX): 17.4mm (RGB) 5.2mm (MS)
 # Sensor size at Y (TSY): 13mm (RGB) 3.9mm (MS)
@@ -282,13 +282,13 @@ def create_map(rpa_image,flight_info):
 
     # Load tile layers:
     # OpenStreetMap
-    TileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            name='OpenStreetMap', max_zoom = 100).add_to(m)
+    TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+            attr='Esri, HERE, Garmin, (c) OpenStreetMap contributors, and the GIS User Community',
+            name='OpenStreetMap', max_zoom = 50).add_to(m)
 
     # World Imagery basemap (ESRI)
     TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', 
-                    attr='ArcGIS.World_Imagery', name='ArcGIS World', max_zoom = 100).add_to(m)
+                    attr='Esri, Maxar, Earthstar Geographics, and the GIS User Community', name='ArcGIS World', max_zoom = 50).add_to(m)
 
     # Load RPA image projected:
     img = create_rotated_img(rpa_image,xmp_info['flight_yaw_degree'])            
@@ -303,12 +303,3 @@ def create_map(rpa_image,flight_info):
                 time.sleep(5) #delay needed to load HTML before removing the temporary file
 
     return f_out_geojson
-
-
-
-#rpa_image='/home/user/Desktop/HARMONIZE-Br_Project/src/FieldWorkCampaigns/Cameta2019/Ani5_20190929/NADIR_Images/DJI_0947.JPG'
-#flight_info = {'flight_height_m':150,'course_angle_degrees':35,'sensor_width_mm':6.248}
-#create_map(rpa_image,flight_info)
-
-
-    

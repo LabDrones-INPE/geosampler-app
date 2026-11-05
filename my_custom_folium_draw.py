@@ -23,7 +23,7 @@ from branca.element import Element, Figure, MacroElement
 from jinja2 import Template
 
 from folium.elements import JSCSSMixin
-import os
+#import os
 
 
 class Draw(JSCSSMixin, MacroElement):

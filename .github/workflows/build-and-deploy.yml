@@ -1,0 +1,144 @@
+name: Build and Deploy Binaries to Portal
+
+on:
+  push:
+    tags:
+      - 'v*' # Dispara o build em tags como v1.0.0, v1.0.1
+
+jobs:
+  build:
+    name: Build Multiplatform Executables
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04       # <-- Ensures an older GLIBC for maximum Linux compatibility
+            asset_name: geosampler-linux
+          - os: windows-latest
+            asset_name: geosampler-windows.exe
+
+    steps:
+      - name: Checkout Private Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # For PyInstaller to compile graphical interfaces (Tkinter) on Ubuntu 22.04,
+      # Sometimes it is necessary to ensure that the Tkinter and X11 development libraries are present on the runner.
+      - name: Install Linux System Dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # Extracts and cleans the tag for the Windows format (X.X.X.X)
+      - name: Create Windows Version Metadata
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          # Extract only the numbers from the tag (e.g., v1.2.3 becomes 1.2.3)
+          CLEAN_VERSION=$(echo "${{ github.ref_name }}" | sed 's/[^0-9.]//g')
+          
+          # Ensures the 4-digit format required by Windows (e.g., 1.2.3 becomes 1.2.3.0)
+          DOT_COUNT=$(echo -n "$CLEAN_VERSION" | tr -cd '.' | wc -c)
+          if [ "$DOT_COUNT" -eq 2 ]; then
+            WIN_VERSION="${CLEAN_VERSION}.0"
+          else
+            WIN_VERSION="$CLEAN_VERSION"
+          fi
+          
+          # Converts the string format "1.2.3.0" into a tuple of integers "(1, 2, 3, 0)"
+          TUPLE_VERSION=$(echo "$WIN_VERSION" | sed 's/\./, /g')
+
+          cat << EOF > file_version_info.txt
+          VSVersionInfo(
+            ffi=FixedFileInfo(
+              filevers=($TUPLE_VERSION),
+              prodvers=($TUPLE_VERSION),
+              mask=0x3f,
+              flags=0x0,
+              OS=0x40004,
+              fileType=0x1,
+              subtype=0x0,
+              date=(0, 0)
+            ),
+            kids=[
+              StringFileInfo(
+                [
+                  StringTable(
+                    '041604b0',
+                    [
+                      StringStruct('CompanyName', 'LabDrones-INPE'),
+                      StringStruct('FileDescription', 'Geosampler App - Scientific Tool'),
+                      StringStruct('FileVersion', '$WIN_VERSION'),
+                      StringStruct('InternalName', 'geosampler-app'),
+                      StringStruct('LegalCopyright', 'Copyright (c) 2026 LabDrones-INPE'),
+                      StringStruct('OriginalFilename', 'geosampler-windows.exe'),
+                      StringStruct('ProductName', 'geosampler-app'),
+                      StringStruct('ProductVersion', '$WIN_VERSION')
+                    ]
+                  )
+                ]
+              ),
+              VarFileInfo([VarStruct('Translation', [1046, 1200])])
+            ]
+          )
+          EOF
+
+      - name: Build Executable with PyInstaller
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            pyinstaller --onefile --noconsole --version-file=file_version_info.txt --icon=logo.ico --name="${{ matrix.asset_name }}" geosampler_app.py
+          else
+            pyinstaller --onefile --noconsole --name="${{ matrix.asset_name }}" geosampler_app.py
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  deploy:
+    name: Commit Executables to Public Portal Repository
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Public Portal Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'LabDrones-INPE/LabDrones-INPE.github.io'
+          token: ${{ secrets.PORTAL_DEPLOY_TOKEN }}
+          path: portal
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Copy Binaries to Portal Folder
+        run: |
+          mkdir -p portal/binaries
+          cp artifacts/geosampler-windows.exe/geosampler-windows.exe portal/binaries/
+          cp artifacts/geosampler-linux/geosampler-linux portal/binaries/
+
+      - name: Commit and Push Changes to Public Repo
+        run: |
+          cd portal
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@://github.com"
+          git add binaries/
+          git commit -m "Update geosampler binaries (Release ${{ github.ref_name }})
+
+          Co-authored-by: Marcos Rodrigues <marcos_lrodrigues@yahoo.com.br>" || exit 0
+          git push
