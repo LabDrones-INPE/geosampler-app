@@ -22,8 +22,6 @@
 # --------------------------
 from PIL import Image, ExifTags
 import geopandas as gpd
-#from osgeo import osr, gdal
-#from matplotlib import image
 from affine import Affine  # For easy manipulation of affine matrix
 from geopy import distance, Point
 from shapely.geometry import Point as shply_Point

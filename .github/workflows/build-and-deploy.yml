@@ -100,7 +100,7 @@ jobs:
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --onefile --noconsole --version-file=file_version_info.txt --icon=logo.ico --name="${{ matrix.asset_name }}" geosampler_app.py
           else
-            pyinstaller --onefile --noconsole --name="${{ matrix.asset_name }}" geosampler_app.py
+            pyinstaller --onefile --noconsole --version-file=file_version_info.txt --name="${{ matrix.asset_name }}" geosampler_app.py
           fi
 
       - name: Upload Artifact
@@ -120,6 +120,7 @@ jobs:
           repository: 'LabDrones-INPE/LabDrones-INPE.github.io'
           token: ${{ secrets.PORTAL_DEPLOY_TOKEN }}
           path: portal
+          lfs: true # <-- Garante que o Git LFS seja inicializado no clone do repositório de destino
 
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
@@ -135,10 +136,20 @@ jobs:
       - name: Commit and Push Changes to Public Repo
         run: |
           cd portal
+          
+          # Inicializa e vincula o Git LFS neste ambiente temporário do runner
+          git lfs install
+          git lfs track "binaries/*"
+          
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@://github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Garante que as novas regras de tracking e os binários sejam indexados corretamente pelo LFS
+          git add .gitattributes
           git add binaries/
+          
           git commit -m "Update geosampler binaries (Release ${{ github.ref_name }})
 
           Co-authored-by: Marcos Rodrigues <marcos_lrodrigues@yahoo.com.br>" || exit 0
-          git push
+          
+          git push origin main

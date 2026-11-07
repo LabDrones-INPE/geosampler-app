@@ -24,7 +24,6 @@
 import PySimpleGUI as sg
 import tkinter as tk
 import os
-#import glob
 from pathlib import Path
 import sys
 import PIL.Image
@@ -124,7 +123,7 @@ def to_shp(file_in):
                 background_color='#d35400', 
                 text_color='#ffffff',
                 font=("Helvetica", 11, "bold"),
-                auto_close_duration=3
+                auto_close_duration=5
             )
            os.remove(file_in)
         else:
@@ -262,19 +261,10 @@ def load_map_tool(file_in):
         popup_win.force_focus()
         samples_file_output = create_map(file_in,flight_info) #Launch the map application to get samples
         popup_win.close()
-        sg.popup_auto_close("The application has been successfully launched in your default browser!", keep_on_top=True, title='Information')
         sg.theme(theme)
        
         # Monitoring until the file with samples is saved:
         target_file = os.path.join(get_download_path(),samples_file_output)
-        sg.popup_quick_message(
-            "Starting background task...", 
-            title="Alert", 
-            background_color='#d35400',
-            text_color='#ffffff',
-            font=("Helvetica", 11, "bold"),
-            auto_close_duration=3
-        )
         daemon = Thread(target=background_task, args=(target_file,), daemon=True, name='Monitor')
         threads_monitor.append(daemon)
         daemon.start()
@@ -371,6 +361,7 @@ threads_monitor = []
 # --------------------------------- Event Loop ---------------------------------
 while True:    
     event, values = window.read()
+    print(event,values)
     if event in ("Exit","-WINDOW CLOSE ATTEMPTED-"):
         if isTreadAlive():
             ch = sg.popup_yes_no("Do you want to exit the application without saving file with samples?", keep_on_top=True, title="Ask confirmation")
