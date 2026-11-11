@@ -1,4 +1,4 @@
-name: Build and Deploy Binaries to Portal
+name: Build and Deploy Binaries to Release
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
             asset_name: geosampler-windows.exe
 
     steps:
-      - name: Checkout Private Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -100,7 +100,7 @@ jobs:
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             pyinstaller --onefile --noconsole --version-file=file_version_info.txt --icon=logo.ico --name="${{ matrix.asset_name }}" geosampler_app.py
           else
-            pyinstaller --onefile --noconsole --version-file=file_version_info.txt --name="${{ matrix.asset_name }}" geosampler_app.py
+            pyinstaller --onefile --noconsole --name="${{ matrix.asset_name }}" geosampler_app.py
           fi
 
       - name: Upload Artifact
@@ -110,46 +110,21 @@ jobs:
           path: dist/${{ matrix.asset_name }}
 
   deploy:
-    name: Commit Executables to Public Portal Repository
+    name: Publish Binaries to GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows the native Actions token to create the release and attach the files
     steps:
-      - name: Checkout Public Portal Repository
-        uses: actions/checkout@v4
-        with:
-          repository: 'LabDrones-INPE/LabDrones-INPE.github.io'
-          token: ${{ secrets.PORTAL_DEPLOY_TOKEN }}
-          path: portal
-          lfs: true # <-- Garante que o Git LFS seja inicializado no clone do repositório de destino
-
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Copy Binaries to Portal Folder
-        run: |
-          mkdir -p portal/binaries
-          cp artifacts/geosampler-windows.exe/geosampler-windows.exe portal/binaries/
-          cp artifacts/geosampler-linux/geosampler-linux portal/binaries/
-
-      - name: Commit and Push Changes to Public Repo
-        run: |
-          cd portal
-          
-          # Inicializa e vincula o Git LFS neste ambiente temporário do runner
-          git lfs install
-          git lfs track "binaries/*"
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Garante que as novas regras de tracking e os binários sejam indexados corretamente pelo LFS
-          git add .gitattributes
-          git add binaries/
-          
-          git commit -m "Update geosampler binaries (Release ${{ github.ref_name }})
-
-          Co-authored-by: Marcos Rodrigues <marcos_lrodrigues@yahoo.com.br>" || exit 0
-          
-          git push origin main
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true # Automatically generates a changelog from commits/issues
+          files: |
+            artifacts/geosampler-windows.exe/geosampler-windows.exe
+            artifacts/geosampler-linux/geosampler-linux
